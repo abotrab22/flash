@@ -780,7 +780,7 @@ function onHandResults(results){
 
   let dir;
   if (Math.abs(dx) > Math.abs(dy)) dir = dx > 0 ? 2 : 0;  // يسار / يمين (مرآة)
-  else                              dir = dy > 0 ? 3 : 1;  // أعلى / أسفل
+  else                              dir = dy > 0 ? 1 : 3;  // أسفل / أعلى
 
   const now = performance.now();
 
