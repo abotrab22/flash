@@ -60,6 +60,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:26px;heigh
 .hud-item{text-align:center;flex:1;}
 .hud-item span{display:block;font-size:10.5px;color:#7d90b3;}
 .hud-item b{font-size:14px;font-weight:800;color:#dbeafe;}
+#trialTimerWrap[hidden]{display:none;}
 .progress{height:4px;background:#1a2337;flex:0 0 auto;overflow:hidden;}
 .progress > i{display:block;height:100%;width:0;background:linear-gradient(90deg,#3b82f6,#22c55e);transition:width .3s;}
 
@@ -101,6 +102,19 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:26px;heigh
   white-space:nowrap;
 }
 #gestureHint.show{opacity:1;transform:translateX(-50%) translateY(-4px);}
+
+.timeout-prompt{
+  position:absolute;inset:0;z-index:30;display:none;align-items:center;justify-content:center;
+  padding:24px;background:rgba(3,8,18,.78);
+}
+.timeout-prompt.show{display:flex;}
+.timeout-card{
+  width:min(100%,360px);padding:22px;border:1px solid #334155;border-radius:18px;
+  background:#131c2e;text-align:center;box-shadow:0 12px 40px rgba(0,0,0,.45);
+}
+.timeout-card h2{margin:0 0 8px;font-size:20px;}
+.timeout-card p{margin:0 0 16px;color:#a8b8d2;font-size:13px;line-height:1.6;}
+.timeout-card .btn{width:100%;margin-top:8px;}
 
 #camToggle{
   position:absolute;right:10px;bottom:10px;z-index:22;
@@ -229,7 +243,9 @@ ol.steps li{font-size:13.5px;color:#b9c8e0;}
           <li>ارفع يدك أمام الكاميرا على مسافة 30–60 سم.</li>
           <li>أشر بإصبع السبابة نحو الاتجاه الذي يشير إليه الحرف.</li>
           <li>ابقِ الإشارة ثابتة لثانية تقريباً حتى تؤكد.</li>
-          <li>أو استخدم الأزرار بالأسفل كبديل دائم.</li>
+          <li>انتظر 3 ثوانٍ بين الأسئلة، وأزل يدك ثم أعد إظهارها لتجنب تكرار الإشارة السابقة.</li>
+          <li>لديك 15 ثانية للاختيار بالكاميرا؛ عند انتهاء الوقت يمكنك إعادة السؤال أو الانتقال للسؤال التالي، ويُحسب تجاوزه خطأً.</li>
+          <li>أو استخدم الأزرار بالأسفل كبديل.</li>
         </ol>
       </div>
       <div class="card warn">
@@ -244,6 +260,7 @@ ol.steps li{font-size:13.5px;color:#b9c8e0;}
       <div class="hud-item"><span>العين</span><b id="hudEye">اليمنى</b></div>
       <div class="hud-item"><span>المسافة</span><b id="hudDist">1 م</b></div>
       <div class="hud-item"><span>المستوى</span><b id="hudLevel">1/1</b></div>
+      <div class="hud-item" id="trialTimerWrap" hidden><span id="trialTimerLabel">الوقت للاختيار</span><b id="trialTimer">15</b></div>
     </div>
     <div class="progress"><i id="progressBar"></i></div>
 
@@ -271,6 +288,14 @@ ol.steps li{font-size:13.5px;color:#b9c8e0;}
     </div>
     <button id="camToggle" aria-label="تشغيل/إيقاف الكاميرا">📷</button>
     <div id="gestureHint"></div>
+    <div class="timeout-prompt" id="timeoutPrompt">
+      <div class="timeout-card">
+        <h2>انتهى وقت الاختيار</h2>
+        <p>اختر إعادة السؤال أو تجاوزه. تجاوز السؤال يُحسب كإجابة خاطئة.</p>
+        <button class="btn primary" id="retryTrial">إعادة السؤال</button>
+        <button class="btn ghost" id="skipTrial">السؤال التالي</button>
+      </div>
+    </div>
   </section>
 
   <section class="screen" id="screen-result">
@@ -314,10 +339,12 @@ const DISTANCES = [0.4, 0.5, 0.75, 1, 1.5, 2, 2.5, 3, 4, 5, 6];
 const MIN_PX    = 7;
 const CARD_MM   = 85.6;
 const LS_KEY    = 'tumbling_e_test_v2';
+const INTER_TRIAL_DELAY_MS = 3000;
+const TRIAL_TIMEOUT_SECONDS = 15;
 
 /* إعدادات اكتشاف الإشارة */
 const GESTURE_MIN_LEN      = 0.06;  // أدنى طول متجه (طبيعي 0-1)
-const GESTURE_CONFIRM_MS   = 350;   // مدة تثبيت الإشارة قبل التأكيد
+const GESTURE_CONFIRM_MS   = 1000;  // مدة تثبيت الإشارة قبل التأكيد
 const GESTURE_COOLDOWN_MS  = 1500;  // منع تكرار نفس الإشارة فوراً
 
 /* =========================================================
@@ -386,6 +413,8 @@ function computeLevels(){
    بدء الفحص
    ========================================================= */
 function beginTest(){
+  clearTrialTimers();
+  $('#timeoutPrompt').classList.remove('show');
   state.lastPassed = null; state.reachedLimit = false;
   state.li = 0; state.correct = 0; state.wrong = 0;
   state.dir = -1; state.locked = false;
@@ -422,6 +451,8 @@ function nextTrial(){
   if (d === state.dir) d = (d + 1 + Math.floor(Math.random() * 3)) % 4;
   state.dir = d;
   renderLetter(); updateHud();
+  state.locked = false;
+  startTrialTimer();
 }
 
 function renderLetter(){
@@ -438,28 +469,91 @@ function updateHud(){
   $('#progressBar').style.width = (state.li / total * 100).toFixed(1) + '%';
 }
 
+let trialTimerInterval = null;
+let transitionTimerInterval = null;
+
+function clearTrialTimers(){
+  clearInterval(trialTimerInterval);
+  clearInterval(transitionTimerInterval);
+  trialTimerInterval = null;
+  transitionTimerInterval = null;
+}
+
+function updateTrialTimer(label, seconds){
+  $('#trialTimerLabel').textContent = label;
+  $('#trialTimer').textContent = seconds;
+  $('#trialTimerWrap').hidden = false;
+}
+
+function stopTrialTimer(){
+  clearInterval(trialTimerInterval);
+  trialTimerInterval = null;
+}
+
+function startTrialTimer(){
+  stopTrialTimer();
+  $('#timeoutPrompt').classList.remove('show');
+  if (state.answerMode !== 'camera'){
+    $('#trialTimerWrap').hidden = true;
+    return;
+  }
+  if (!camRunning){
+    updateTrialTimer('بانتظار تشغيل الكاميرا', '—');
+    return;
+  }
+
+  let remaining = TRIAL_TIMEOUT_SECONDS;
+  updateTrialTimer('الوقت للاختيار', remaining);
+  trialTimerInterval = setInterval(() => {
+    remaining--;
+    if (remaining <= 0){
+      stopTrialTimer();
+      state.locked = true;
+      updateTrialTimer('انتهى وقت الاختيار', 0);
+      $('#timeoutPrompt').classList.add('show');
+      hideGestureHint();
+      return;
+    }
+    updateTrialTimer('الوقت للاختيار', remaining);
+  }, 1000);
+}
+
+function startInterTrialDelay(){
+  stopTrialTimer();
+  state.locked = true;
+  let remaining = INTER_TRIAL_DELAY_MS / 1000;
+  updateTrialTimer('السؤال التالي بعد', remaining);
+  transitionTimerInterval = setInterval(() => {
+    remaining--;
+    if (remaining <= 0){
+      clearInterval(transitionTimerInterval);
+      transitionTimerInterval = null;
+      const need = state.quick ? 2 : 3;
+      const total = state.quick ? 3 : 5;
+      if (state.correct >= need) return endLevel(true);
+      if (state.wrong >= need) return endLevel(false);
+      if (state.correct + state.wrong >= total) return endLevel(state.correct >= need);
+      state.locked = false;
+      nextTrial();
+      return;
+    }
+    updateTrialTimer('السؤال التالي بعد', remaining);
+  }, 1000);
+}
+
 /* =========================================================
    الإجابة
    ========================================================= */
 function answer(dir){
   if (!state.running || state.locked) return;
   state.locked = true;
+  stopTrialTimer();
+  if (state.answerMode === 'camera') gesture.awaitingRelease = true;
 
   const ok = (dir === state.dir);
   if (ok) state.correct++; else state.wrong++;
   flash(ok);
-
-  setTimeout(() => {
-    state.locked = false;
-    if (!state.running) return;
-
-    const need = state.quick ? 2 : 3;
-    const total = state.quick ? 3 : 5;
-    if (state.correct >= need) return endLevel(true);
-    if (state.wrong >= need) return endLevel(false);
-    if (state.correct + state.wrong >= total) return endLevel(state.correct >= need);
-    nextTrial();
-  }, 420);
+  startInterTrialDelay();
 }
 
 function flash(ok){
@@ -479,6 +573,9 @@ function endLevel(passed){
 
 function finish(){
   state.running = false;
+  clearTrialTimers();
+  $('#timeoutPrompt').classList.remove('show');
+  $('#trialTimerWrap').hidden = true;
   stopCamera();
   state.results[state.eye] = state.lastPassed;
   renderResult();
@@ -561,7 +658,8 @@ const gesture = {
   candidate: -1,
   candidateSince: 0,
   lastConfirmedDir: -1,
-  lastConfirmedAt: 0
+  lastConfirmedAt: 0,
+  awaitingRelease: false
 };
 
 const DIR_NAMES = ['يمين','أسفل','يسار','أعلى'];
@@ -595,11 +693,13 @@ async function startCamera(){
     camRunning = true;
     $('#camWrap').classList.remove('off');
     $('#camToggle').classList.add('on');
+    if (state.running && !state.locked) startTrialTimer();
   }catch(err){
     console.warn('Camera start failed:', err);
     stopCamera();
     // الرجوع لوضع اللمس
     state.answerMode = 'touch';
+    startTrialTimer();
     save();
     updateHomeUI();
     alert('لم نتمكن من الوصول إلى الكاميرا. تأكد من منح الإذن أو استخدم وضع اللمس.');
@@ -615,6 +715,7 @@ function stopCamera(){
   clearOverlay();
   hideGestureHint();
   resetGestureState();
+  if (state.running) startTrialTimer();
 }
 
 function resetGestureState(){
@@ -622,6 +723,7 @@ function resetGestureState(){
   gesture.candidateSince = 0;
   gesture.lastConfirmedDir = -1;
   gesture.lastConfirmedAt = 0;
+  gesture.awaitingRelease = false;
 }
 
 /* =========================================================
@@ -648,6 +750,12 @@ function onHandResults(results){
 
   // رسم نقاط اليد للمعاينة
   drawHand(ctx, lm, w, h);
+  if (!state.running || state.locked){
+    gesture.candidate = -1;
+    gesture.candidateSince = 0;
+    hideGestureHint();
+    return;
+  }
 
   // كشف الاتجاه: من الرسغ (0) إلى طرف السبابة (8)
   const wrist = lm[0];
@@ -660,6 +768,12 @@ function onHandResults(results){
   if (len < GESTURE_MIN_LEN){
     resetGestureState();
     hideGestureHint();
+    return;
+  }
+  if (gesture.awaitingRelease){
+    gesture.candidate = -1;
+    gesture.candidateSince = 0;
+    showGestureHint('أزل يدك ثم أعد إظهارها للاختيار', false);
     return;
   }
 
@@ -684,7 +798,9 @@ function onHandResults(results){
         answer(dir);
         setTimeout(hideGestureHint, 400);
       }
-      resetGestureState();
+      gesture.candidate = -1;
+      gesture.candidateSince = 0;
+      gesture.awaitingRelease = true;
     }
   } else {
     gesture.candidate = dir;
@@ -824,6 +940,18 @@ function bindEvents(){
 
   $$('.dirbtn').forEach(b => b.addEventListener('click', () => answer(Number(b.dataset.dir))));
   $('#cantSee').addEventListener('click', () => answer(-1));
+  $('#retryTrial').addEventListener('click', () => {
+    $('#timeoutPrompt').classList.remove('show');
+    state.locked = false;
+    resetGestureState();
+    startTrialTimer();
+  });
+  $('#skipTrial').addEventListener('click', () => {
+    $('#timeoutPrompt').classList.remove('show');
+    state.locked = false;
+    if (state.answerMode === 'camera') gesture.awaitingRelease = true;
+    answer(-1);
+  });
 
   document.addEventListener('keydown', e => {
     if (!state.running) return;
