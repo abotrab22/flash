@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#f5f7fb">
-  <meta name="description" content="احسب سعر الأقساط بإضافة ٢٠٪ إلى السعر النقدي.">
+  <meta name="description" content="احسب سعر الأقساط من السعر النقدي.">
   <title>حاسبة الأقساط</title>
   <style>
     :root {
@@ -99,7 +99,7 @@
       font-weight: 750;
     }
 
-    .rate {
+    .term-badge {
       padding: 6px 10px;
       border-radius: 999px;
       background: #edf8f3;
@@ -159,47 +159,6 @@
     .helper.error { color: #c43d4d; }
 
     .installment-row { margin-top: 22px; }
-
-    .stepper {
-      display: flex;
-      align-items: center;
-      gap: 13px;
-      direction: ltr;
-    }
-
-    .stepper button {
-      display: grid;
-      width: 42px;
-      height: 42px;
-      place-items: center;
-      border: 1px solid #e3e7f0;
-      border-radius: 13px;
-      background: #f7f8fc;
-      color: #5565c4;
-      font-size: 1.3rem;
-      font-weight: 600;
-      cursor: pointer;
-    }
-
-    .stepper button:active { background: #e9ecff; }
-
-    .stepper input {
-      width: 58px;
-      padding: 4px;
-      border: 0;
-      outline: 0;
-      background: transparent;
-      color: #17233c;
-      font-size: 1.1rem;
-      font-weight: 800;
-      text-align: center;
-    }
-
-    .months-label {
-      color: #8993a8;
-      font-size: .79rem;
-      font-weight: 650;
-    }
 
     .result {
       position: relative;
@@ -348,14 +307,14 @@
     <header>
       <span class="eyebrow"><span class="eyebrow-mark" aria-hidden="true"></span>حاسبة بيع بالتقسيط</span>
       <h1>من النقد إلى الأقساط</h1>
-      <p class="subtitle">أدخل السعر النقدي وشاهد سعر الأقساط بعد إضافة ٢٠٪.</p>
+      <p class="subtitle">أدخل السعر النقدي لمعرفة سعر الأقساط وقيمة القسط.</p>
     </header>
 
     <main>
       <section class="panel calculator" aria-label="مدخلات الحاسبة">
         <div class="field-heading">
           <label for="cashPrice">السعر النقدي</label>
-          <span class="rate">زيادة ثابتة ٢٠٪</span>
+          <span class="term-badge">١٠ أشهر</span>
         </div>
         <div class="amount-wrap">
           <input id="cashPrice" type="text" inputmode="decimal" autocomplete="off" placeholder="مثال: ١٠٠٠" aria-describedby="priceHelp" aria-label="السعر النقدي">
@@ -365,13 +324,8 @@
 
         <div class="installment-row">
           <div class="installment-heading">
-            <label for="months">عدد الأقساط</label>
-            <span class="stepper">
-              <button id="decrease" type="button" aria-label="تقليل عدد الأقساط">−</button>
-              <input id="months" type="number" inputmode="numeric" min="1" max="60" step="1" value="12" aria-label="عدد الأقساط">
-              <button id="increase" type="button" aria-label="زيادة عدد الأقساط">+</button>
-            </span>
-            <span class="months-label">شهراً</span>
+            <span class="section-title">مدة التقسيط</span>
+            <span class="term-badge">١٠ أقساط متساوية</span>
           </div>
         </div>
       </section>
@@ -387,7 +341,7 @@
             <strong id="cashSummary">—</strong>
           </div>
           <div class="breakdown-item">
-            <span>مبلغ الزيادة (٢٠٪)</span>
+            <span>قيمة الإضافة</span>
             <strong id="increaseAmount">—</strong>
           </div>
         </div>
@@ -396,7 +350,7 @@
       <section class="panel monthly" aria-label="قيمة القسط">
         <div class="monthly-copy">
           <strong>القسط الشهري التقريبي</strong>
-          <span id="monthlyCaption">على ١٢ شهراً</span>
+          <span id="monthlyCaption">على ١٠ أشهر</span>
         </div>
         <strong class="monthly-amount" id="monthlyAmount">—</strong>
       </section>
@@ -409,7 +363,7 @@
   <script>
     (() => {
       const RATE = 0.2;
-      const MAX_MONTHS = 60;
+      const INSTALLMENT_COUNT = 10;
       const digits = new Map([
         ...[...'٠١٢٣٤٥٦٧٨٩'].map((digit, index) => [digit, String(index)]),
         ...[...'۰۱۲۳۴۵۶۷۸۹'].map((digit, index) => [digit, String(index)])
@@ -418,16 +372,12 @@
         minimumFractionDigits: 2,
         maximumFractionDigits: 2
       });
-      const countFormat = new Intl.NumberFormat('ar', { maximumFractionDigits: 0 });
-
       const cashInput = document.querySelector('#cashPrice');
-      const monthsInput = document.querySelector('#months');
       const helper = document.querySelector('#priceHelp');
       const priceOutput = document.querySelector('#installmentPrice');
       const cashOutput = document.querySelector('#cashSummary');
       const increaseOutput = document.querySelector('#increaseAmount');
       const monthlyOutput = document.querySelector('#monthlyAmount');
-      const monthlyCaption = document.querySelector('#monthlyCaption');
 
       function parseAmount(value) {
         let normalized = [...value.trim()].map(character => digits.get(character) ?? character).join('');
@@ -452,22 +402,18 @@
 
       function update() {
         const cashPrice = parseAmount(cashInput.value);
-        const months = Number(monthsInput.value);
-        const validMonths = Number.isInteger(months) && months >= 1 && months <= MAX_MONTHS;
         const hasPrice = cashInput.value.trim().length > 0;
         const validPrice = cashPrice !== null && cashPrice > 0;
         const messages = [];
 
-        monthsInput.setAttribute('aria-invalid', String(!validMonths));
         cashInput.setAttribute('aria-invalid', String(hasPrice && !validPrice));
-        if (!validMonths) messages.push('اختر عدداً من ١ إلى ٦٠ شهراً.');
         if (hasPrice && !validPrice) messages.push('أدخل مبلغاً صحيحاً أكبر من صفر وبحد أقصى منزلتين عشريتين.');
         helper.textContent = messages.length
           ? messages.join(' ')
           : 'أدخل السعر بأي عملة؛ ستبقى النتائج بنفس العملة.';
         helper.classList.toggle('error', messages.length > 0);
 
-        const canCalculate = validPrice && validMonths;
+        const canCalculate = validPrice;
         [priceOutput, cashOutput, increaseOutput, monthlyOutput].forEach(output => {
           output.textContent = canCalculate ? '' : '—';
         });
@@ -475,28 +421,17 @@
 
         const increase = Math.round((cashPrice * RATE + Number.EPSILON) * 100) / 100;
         const total = Math.round((cashPrice + increase + Number.EPSILON) * 100) / 100;
-        const monthly = Math.round((total / months + Number.EPSILON) * 100) / 100;
+        const monthly = Math.round((total / INSTALLMENT_COUNT + Number.EPSILON) * 100) / 100;
 
         priceOutput.textContent = formatAmount(total);
         cashOutput.textContent = formatAmount(cashPrice);
         increaseOutput.textContent = formatAmount(increase);
         monthlyOutput.textContent = formatAmount(monthly);
-        monthlyCaption.textContent = `على ${countFormat.format(months)} شهراً`;
-      }
-
-      function changeMonths(amount) {
-        const current = Number(monthsInput.value) || 1;
-        monthsInput.value = String(Math.max(1, Math.min(MAX_MONTHS, current + amount)));
-        update();
       }
 
       cashInput.addEventListener('input', update);
-      monthsInput.addEventListener('input', update);
-      document.querySelector('#decrease').addEventListener('click', () => changeMonths(-1));
-      document.querySelector('#increase').addEventListener('click', () => changeMonths(1));
       document.querySelector('#reset').addEventListener('click', () => {
         cashInput.value = '';
-        monthsInput.value = '12';
         update();
         cashInput.focus();
       });
