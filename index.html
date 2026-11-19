@@ -399,7 +399,7 @@
       <section class="panel result" aria-label="نتيجة الحساب" aria-live="polite" aria-atomic="true">
         <span class="result-label">سعر الأقساط الإجمالي</span>
         <strong class="total" id="installmentPrice">—</strong>
-        <span class="total-unit">مقرب لأقرب ١٠٬٠٠٠ دينار عراقي</span>
+        <span class="total-unit">مقرب لأقرب ٥٬٠٠٠ دينار عراقي</span>
         <div class="divider"></div>
         <div class="breakdown">
           <div class="breakdown-item">
@@ -430,7 +430,7 @@
     (() => {
       const RATES = { mobile: 0.3, other: 0.2 };
       const INSTALLMENT_COUNT = 10;
-      const ROUNDING_UNIT = 10000;
+      const ROUNDING_UNIT = 5000;
       const digits = new Map([
         ...[...'٠١٢٣٤٥٦٧٨٩'].map((digit, index) => [digit, String(index)]),
         ...[...'۰۱۲۳۴۵۶۷۸۹'].map((digit, index) => [digit, String(index)])
@@ -472,7 +472,7 @@
       function update() {
         const deviceType = document.querySelector('input[name="deviceType"]:checked').value;
         const rate = RATES[deviceType];
-        pricingNote.textContent = `يُضاف ${numberFormat.format(rate * 100)}٪ إلى السعر النقدي، ثم يُقرّب الإجمالي لأقرب ١٠٬٠٠٠ دينار عراقي.`;
+        pricingNote.textContent = `يُضاف ${numberFormat.format(rate * 100)}٪ إلى السعر النقدي، ثم يُقرّب الإجمالي لأقرب ٥٬٠٠٠ دينار عراقي.`;
 
         const cashPrice = parseAmount(cashInput.value);
         const hasPrice = cashInput.value.trim().length > 0;
