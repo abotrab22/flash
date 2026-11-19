@@ -317,10 +317,10 @@
           <span class="term-badge">١٠ أشهر</span>
         </div>
         <div class="amount-wrap">
-          <input id="cashPrice" type="text" inputmode="decimal" autocomplete="off" placeholder="مثال: ١٠٠٠" aria-describedby="priceHelp" aria-label="السعر النقدي">
-          <span class="amount-unit">المبلغ</span>
+          <input id="cashPrice" type="text" inputmode="decimal" autocomplete="off" placeholder="مثال: ١٠٠٬٠٠٠" aria-describedby="priceHelp" aria-label="السعر النقدي">
+          <span class="amount-unit">د.ع.</span>
         </div>
-        <p class="helper" id="priceHelp" aria-live="polite">أدخل السعر بأي عملة؛ ستبقى النتائج بنفس العملة.</p>
+        <p class="helper" id="priceHelp" aria-live="polite">أدخل السعر بالدينار العراقي.</p>
 
         <div class="installment-row">
           <div class="installment-heading">
@@ -333,7 +333,7 @@
       <section class="panel result" aria-label="نتيجة الحساب" aria-live="polite" aria-atomic="true">
         <span class="result-label">سعر الأقساط الإجمالي</span>
         <strong class="total" id="installmentPrice">—</strong>
-        <span class="total-unit">بنفس عملة السعر المُدخل</span>
+        <span class="total-unit">مقرب لأقرب ١٠٬٠٠٠ دينار عراقي</span>
         <div class="divider"></div>
         <div class="breakdown">
           <div class="breakdown-item">
@@ -355,7 +355,7 @@
         <strong class="monthly-amount" id="monthlyAmount">—</strong>
       </section>
 
-      <p class="note">القسط الشهري تقديري، وقد يختلف فرق التقريب في القسط الأخير حسب العملة.</p>
+      <p class="note">يُضاف ٢٠٪ إلى السعر النقدي، ثم يُقرّب الإجمالي لأقرب ١٠٬٠٠٠ دينار عراقي.</p>
       <button class="reset" id="reset" type="button">مسح الحاسبة</button>
     </main>
   </div>
@@ -364,12 +364,13 @@
     (() => {
       const RATE = 0.2;
       const INSTALLMENT_COUNT = 10;
+      const ROUNDING_UNIT = 10000;
       const digits = new Map([
         ...[...'٠١٢٣٤٥٦٧٨٩'].map((digit, index) => [digit, String(index)]),
         ...[...'۰۱۲۳۴۵۶۷۸۹'].map((digit, index) => [digit, String(index)])
       ]);
       const numberFormat = new Intl.NumberFormat('en-US', {
-        minimumFractionDigits: 2,
+        minimumFractionDigits: 0,
         maximumFractionDigits: 2
       });
       const cashInput = document.querySelector('#cashPrice');
@@ -397,7 +398,7 @@
       }
 
       function formatAmount(amount) {
-        return numberFormat.format(amount);
+        return `${numberFormat.format(amount)} د.ع.`;
       }
 
       function update() {
@@ -410,7 +411,7 @@
         if (hasPrice && !validPrice) messages.push('أدخل مبلغاً صحيحاً أكبر من صفر وبحد أقصى منزلتين عشريتين.');
         helper.textContent = messages.length
           ? messages.join(' ')
-          : 'أدخل السعر بأي عملة؛ ستبقى النتائج بنفس العملة.';
+          : 'أدخل السعر بالدينار العراقي.';
         helper.classList.toggle('error', messages.length > 0);
 
         const canCalculate = validPrice;
@@ -419,8 +420,9 @@
         });
         if (!canCalculate) return;
 
-        const increase = Math.round((cashPrice * RATE + Number.EPSILON) * 100) / 100;
-        const total = Math.round((cashPrice + increase + Number.EPSILON) * 100) / 100;
+        const totalBeforeRounding = cashPrice * (1 + RATE);
+        const total = Math.round((totalBeforeRounding + Number.EPSILON) / ROUNDING_UNIT) * ROUNDING_UNIT;
+        const increase = Math.round((total - cashPrice + Number.EPSILON) * 100) / 100;
         const monthly = Math.round((total / INSTALLMENT_COUNT + Number.EPSILON) * 100) / 100;
 
         priceOutput.textContent = formatAmount(total);
