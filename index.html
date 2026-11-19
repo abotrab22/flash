@@ -87,6 +87,59 @@
 
     .calculator { padding: 22px; }
 
+    .device-field {
+      min-width: 0;
+      margin: 0 0 20px;
+      padding: 0;
+      border: 0;
+    }
+
+    .device-field legend {
+      margin-bottom: 10px;
+      font-size: .91rem;
+      font-weight: 750;
+    }
+
+    .device-options {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .device-option {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-height: 48px;
+      padding: 9px;
+      border: 1.5px solid #dfe4ef;
+      border-radius: 13px;
+      background: #fbfcfe;
+      color: #69758d;
+      font-size: .84rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .device-option:has(input:checked) {
+      border-color: #6678ed;
+      background: #f1f3ff;
+      color: #4657bd;
+    }
+
+    .device-option input {
+      width: 16px;
+      height: 16px;
+      margin: 0;
+      accent-color: #5369dc;
+    }
+
+    .device-option:focus-within {
+      outline: 3px solid rgba(102, 120, 237, .2);
+      outline-offset: 2px;
+    }
+
     .field-heading, .installment-heading {
       display: flex;
       align-items: center;
@@ -312,6 +365,19 @@
 
     <main>
       <section class="panel calculator" aria-label="مدخلات الحاسبة">
+        <fieldset class="device-field">
+          <legend>نوع الجهاز</legend>
+          <div class="device-options">
+            <label class="device-option">
+              <input type="radio" name="deviceType" value="mobile">
+              موبايل
+            </label>
+            <label class="device-option">
+              <input type="radio" name="deviceType" value="other" checked>
+              باقي الأجهزة
+            </label>
+          </div>
+        </fieldset>
         <div class="field-heading">
           <label for="cashPrice">السعر النقدي</label>
           <span class="term-badge">١٠ أشهر</span>
@@ -355,14 +421,14 @@
         <strong class="monthly-amount" id="monthlyAmount">—</strong>
       </section>
 
-      <p class="note">يُضاف ٢٠٪ إلى السعر النقدي، ثم يُقرّب الإجمالي لأقرب ١٠٬٠٠٠ دينار عراقي.</p>
+      <p class="note" id="pricingNote" aria-live="polite"></p>
       <button class="reset" id="reset" type="button">مسح الحاسبة</button>
     </main>
   </div>
 
   <script>
     (() => {
-      const RATE = 0.2;
+      const RATES = { mobile: 0.3, other: 0.2 };
       const INSTALLMENT_COUNT = 10;
       const ROUNDING_UNIT = 10000;
       const digits = new Map([
@@ -379,6 +445,8 @@
       const cashOutput = document.querySelector('#cashSummary');
       const increaseOutput = document.querySelector('#increaseAmount');
       const monthlyOutput = document.querySelector('#monthlyAmount');
+      const pricingNote = document.querySelector('#pricingNote');
+      const deviceInputs = document.querySelectorAll('input[name="deviceType"]');
 
       function parseAmount(value) {
         let normalized = [...value.trim()].map(character => digits.get(character) ?? character).join('');
@@ -402,6 +470,10 @@
       }
 
       function update() {
+        const deviceType = document.querySelector('input[name="deviceType"]:checked').value;
+        const rate = RATES[deviceType];
+        pricingNote.textContent = `يُضاف ${numberFormat.format(rate * 100)}٪ إلى السعر النقدي، ثم يُقرّب الإجمالي لأقرب ١٠٬٠٠٠ دينار عراقي.`;
+
         const cashPrice = parseAmount(cashInput.value);
         const hasPrice = cashInput.value.trim().length > 0;
         const validPrice = cashPrice !== null && cashPrice > 0;
@@ -420,7 +492,7 @@
         });
         if (!canCalculate) return;
 
-        const totalBeforeRounding = cashPrice * (1 + RATE);
+        const totalBeforeRounding = cashPrice * (1 + rate);
         const total = Math.round((totalBeforeRounding + Number.EPSILON) / ROUNDING_UNIT) * ROUNDING_UNIT;
         const increase = Math.round((total - cashPrice + Number.EPSILON) * 100) / 100;
         const monthly = Math.round((total / INSTALLMENT_COUNT + Number.EPSILON) * 100) / 100;
@@ -432,6 +504,7 @@
       }
 
       cashInput.addEventListener('input', update);
+      deviceInputs.forEach(input => input.addEventListener('change', update));
       document.querySelector('#reset').addEventListener('click', () => {
         cashInput.value = '';
         update();
