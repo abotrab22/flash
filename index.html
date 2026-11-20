@@ -399,7 +399,7 @@
       <section class="panel result" aria-label="نتيجة الحساب" aria-live="polite" aria-atomic="true">
         <span class="result-label">سعر الأقساط الإجمالي</span>
         <strong class="total" id="installmentPrice">—</strong>
-        <span class="total-unit">مقرب لأقرب ٥٬٠٠٠ دينار عراقي</span>
+        <span class="total-unit">مقرب للأعلى إلى أقرب ٥٬٠٠٠ دينار عراقي</span>
         <div class="divider"></div>
         <div class="breakdown">
           <div class="breakdown-item">
@@ -472,7 +472,7 @@
       function update() {
         const deviceType = document.querySelector('input[name="deviceType"]:checked').value;
         const rate = RATES[deviceType];
-        pricingNote.textContent = `يُضاف ${numberFormat.format(rate * 100)}٪ إلى السعر النقدي، ثم يُقرّب الإجمالي لأقرب ٥٬٠٠٠ دينار عراقي.`;
+        pricingNote.textContent = `يُضاف ${numberFormat.format(rate * 100)}٪ إلى السعر النقدي، ثم يُقرّب الإجمالي للأعلى إلى أقرب ٥٬٠٠٠ دينار عراقي.`;
 
         const cashPrice = parseAmount(cashInput.value);
         const hasPrice = cashInput.value.trim().length > 0;
@@ -493,7 +493,7 @@
         if (!canCalculate) return;
 
         const totalBeforeRounding = cashPrice * (1 + rate);
-        const total = Math.round((totalBeforeRounding + Number.EPSILON) / ROUNDING_UNIT) * ROUNDING_UNIT;
+        const total = Math.ceil(totalBeforeRounding / ROUNDING_UNIT) * ROUNDING_UNIT;
         const increase = Math.round((total - cashPrice + Number.EPSILON) * 100) / 100;
         const monthly = Math.round((total / INSTALLMENT_COUNT + Number.EPSILON) * 100) / 100;
 
